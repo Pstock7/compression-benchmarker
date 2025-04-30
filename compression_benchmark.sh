@@ -88,8 +88,13 @@ done
 
 # Generate summary statistics
 echo -e "\nGenerating summary statistics..."
-echo -e "\nAverage metrics by algorithm:" >>"$RESULTS_FILE"
-echo "Algorithm,Avg Compression Ratio,Avg Compression Time (s),Avg Decompression Time (s),Avg Compression Speed (MB/s),Avg Decompression Speed (MB/s)" >>"$RESULTS_FILE"
+
+# Use separate temporary files for each analysis to avoid clobbering
+AVG_METRICS_FILE="/results/avg_metrics.csv"
+CONSOLIDATED_FILE="/results/consolidated_results.csv"
+
+# First summary: Average metrics by algorithm
+echo "Algorithm,Avg Compression Ratio,Avg Compression Time (s),Avg Decompression Time (s),Avg Compression Speed (MB/s),Avg Decompression Speed (MB/s)" >"$AVG_METRICS_FILE"
 
 # Use awk to calculate averages by algorithm
 awk -F, 'NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
@@ -112,11 +117,10 @@ END {
                 (decomp_speed_sum[algo] ? decomp_speed_sum[algo]/count[algo] : 0);
         }
     }
-}' "$RESULTS_FILE" | sort -t, -k2nr >>"$RESULTS_FILE"
+}' "$RESULTS_FILE" | sort -t, -k2nr >>"$AVG_METRICS_FILE"
 
-# Create a consolidated results file with the total size of all files
-echo -e "\nGenerating consolidated results..."
-echo "Algorithm,Total Original Size (KB),Total Compressed Size (KB),Overall Compression Ratio" >>"$RESULTS_FILE"
+# Second summary: Consolidated results with total sizes
+echo "Algorithm,Total Original Size (KB),Total Compressed Size (KB),Overall Compression Ratio" >"$CONSOLIDATED_FILE"
 
 # Use awk to calculate total sizes and overall ratios
 awk -F, '
@@ -143,45 +147,14 @@ END {
                 comp_size[algo];
         }
     }
-}' "$RESULTS_FILE" | sort -t, -k4r >>"$RESULTS_FILE" 2>/dev/null || {
-    # Fallback sorting that avoids numeric sorting issues
-    awk -F, '
-    BEGIN {
-        PROCINFO["sorted_in"] = "@val_num_desc";
-    }
-    NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
-        orig_size[$2] += $3;
-        comp_size[$2] += $4;
-    }
-    END {
-        # Sort by ratio
-        for (algo in orig_size) {
-            if (comp_size[algo] > 0) {
-                ratio = orig_size[algo]/comp_size[algo];
-                data[algo] = ratio;
-            } else {
-                data[algo] = 0;
-            }
-        }
+}' "$RESULTS_FILE" | sort -t, -k4nr >>"$CONSOLIDATED_FILE"
 
-        # Print in descending order
-        PROCINFO["sorted_in"] = "@val_num_desc";
-        for (algo in data) {
-            if (comp_size[algo] > 0) {
-                printf "%s,%d,%d,%.2f\n",
-                    algo,
-                    orig_size[algo],
-                    comp_size[algo],
-                    orig_size[algo]/comp_size[algo];
-            } else {
-                printf "%s,%d,%d,N/A\n",
-                    algo,
-                    orig_size[algo],
-                    comp_size[algo];
-            }
-        }
-    }' "$RESULTS_FILE" >>"$RESULTS_FILE"
-}
+# Combine all files into the final results file
+echo -e "\nAverage metrics by algorithm:" >>"$RESULTS_FILE"
+cat "$AVG_METRICS_FILE" >>"$RESULTS_FILE"
+
+echo -e "\nConsolidated results:" >>"$RESULTS_FILE"
+cat "$CONSOLIDATED_FILE" >>"$RESULTS_FILE"
 
 # Generate a visual report
 echo -e "\nCreating a visual report in HTML format..."
@@ -379,32 +352,14 @@ cat >>"/results/report.html" <<'EOF'
                 <tbody>
 EOF
 
-# Generate summary rows dynamically
-echo "Generating summary rows for HTML report..."
-awk -F, 'NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ && $2 ~ /-[0-9]+$/ {
-    count[$2]++;
-    orig_sum[$2] += $3;
-    comp_sum[$2] += $4;
-    ratio_sum[$2] += $5;
-    comp_time_sum[$2] += $6;
-    decomp_time_sum[$2] += $7;
-    comp_speed_sum[$2] += $8;
-    decomp_speed_sum[$2] += $9;
-}
-END {
-    for (algo in count) {
-        if (count[algo] > 0) {
-            print "<tr>";
-            print "<td>" algo "</td>";
-            printf "<td>%.2f</td>", ratio_sum[algo]/count[algo];
-            printf "<td>%.2f</td>", comp_time_sum[algo]/count[algo];
-            printf "<td>%.2f</td>", decomp_time_sum[algo]/count[algo];
-            printf "<td>%.2f</td>", comp_speed_sum[algo]/count[algo];
-            printf "<td>%.2f</td>", decomp_speed_sum[algo]/count[algo];
-            print "</tr>";
-        }
+# Generate summary rows directly from the AVG_METRICS_FILE file
+awk -F, 'NR>1 {
+    print "<tr>";
+    for(i=1; i<=NF; i++) {
+        print "<td>" $i "</td>";
     }
-}' "$RESULTS_FILE" >>"/results/report.html"
+    print "</tr>";
+}' "$AVG_METRICS_FILE" >>"/results/report.html"
 
 cat >>"/results/report.html" <<'EOF'
                 </tbody>
@@ -667,6 +622,9 @@ cat >>"/results/report.html" <<'EOF'
 </body>
 </html>
 EOF
+
+# Clean up temporary files
+rm -f "$AVG_METRICS_FILE" "$CONSOLIDATED_FILE"
 
 echo "Benchmark completed successfully!"
 echo "Results are available in $RESULTS_FILE"
