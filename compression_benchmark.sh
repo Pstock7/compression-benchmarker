@@ -300,6 +300,9 @@ cat >"/results/report.html" <<'EOF'
             <div class="chart-container">
                 <canvas id="speedChart"></canvas>
             </div>
+            <div class="chart-container">
+                <canvas id="scatterChart"></canvas>
+            </div>
         </div>
 
         <div id="detailsTab" class="tab-content">
@@ -613,6 +616,89 @@ cat >>"/results/report.html" <<'EOF'
                                 display: true,
                                 text: 'Speed (MB/s, higher is better)'
                             }
+                        }
+                    }
+                }
+            });
+            
+            // Create efficiency scatter plot (compression ratio vs speed)
+            // Group algorithms by compression method
+            const methodGroups = {};
+            algorithms.forEach(algo => {
+                const [method, level] = algo.split('-');
+                if (!methodGroups[method]) {
+                    methodGroups[method] = [];
+                }
+                methodGroups[method].push(algo);
+            });
+            
+            // Create datasets for the scatter plot - one dataset per compression method
+            const scatterDatasets = Object.keys(methodGroups).map(method => {
+                const methodAlgos = methodGroups[method].sort((a, b) => {
+                    const aLevel = parseInt(a.split('-')[1]);
+                    const bLevel = parseInt(b.split('-')[1]);
+                    return aLevel - bLevel;
+                });
+                
+                return {
+                    label: method,
+                    data: methodAlgos.map(algo => {
+                        const algoData = avgData.find(d => d.algorithm === algo);
+                        return {
+                            x: algoData.compSpeed,
+                            y: algoData.ratio,
+                            algorithm: algo
+                        };
+                    }),
+                    backgroundColor: getColor(method),
+                    borderColor: getColor(method),
+                    pointRadius: 8,
+                    pointHoverRadius: 12,
+                    showLine: true,
+                    fill: false,
+                    tension: 0.1
+                };
+            });
+            
+            // Create the scatter plot
+            const scatterChart = new Chart(document.getElementById('scatterChart').getContext('2d'), {
+                type: 'scatter',
+                data: {
+                    datasets: scatterDatasets
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Compression Efficiency (Ratio vs Speed)',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const point = context.raw;
+                                    return `${point.algorithm}: Ratio ${point.y.toFixed(2)}x, Speed ${point.x.toFixed(2)} MB/s`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Compression Speed (MB/s) - higher is better'
+                            },
+                            beginAtZero: true
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Compression Ratio - higher is better'
+                            },
+                            beginAtZero: true
                         }
                     }
                 }
