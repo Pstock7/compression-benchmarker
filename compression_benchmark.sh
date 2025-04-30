@@ -1,0 +1,363 @@
+#!/bin/bash
+set -e
+
+# Create directories
+mkdir -p /data/silesia /results
+
+# Download and extract the Silesia corpus
+echo "Downloading Silesia corpus..."
+cd /data
+wget -q http://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
+unzip -q silesia.zip -d silesia
+rm silesia.zip
+
+# Initialize results file with headers
+RESULTS_FILE="/results/compression_results.csv"
+echo "File,Algorithm,Original Size (KB),Compressed Size (KB),Compression Ratio,Compression Time (s),Decompression Time (s),Compression Speed (MB/s),Decompression Speed (MB/s)" >"$RESULTS_FILE"
+
+# Function to test compression algorithm
+test_compression() {
+  local file=$1
+  local algorithm=$2
+  local command=$3
+  local decompress_command=$4
+  local extension=$5
+
+  local filename=$(basename "$file")
+  local original_size=$(du -k "$file" | cut -f1)
+  local original_size_bytes=$(stat -c %s "$file")
+  local original_mb=$(echo "scale=3; $original_size_bytes / 1048576" | bc)
+
+  echo "Testing $algorithm on $filename..."
+
+  # Compression test
+  local compressed_file="/data/compressed/${filename}${extension}"
+  local start_time=$(date +%s.%N)
+  eval "$command \"$file\" > \"$compressed_file\""
+  local end_time=$(date +%s.%N)
+  local compression_time=$(echo "$end_time - $start_time" | bc)
+  local compressed_size=$(du -k "$compressed_file" | cut -f1)
+  local compression_ratio=$(echo "scale=2; $original_size / $compressed_size" | bc)
+  local compression_speed=$(echo "scale=2; $original_mb / $compression_time" | bc)
+
+  # Decompression test
+  local decompressed_file="/data/decompressed/${filename}"
+  local start_time=$(date +%s.%N)
+  eval "$decompress_command \"$compressed_file\" > \"$decompressed_file\""
+  local end_time=$(date +%s.%N)
+  local decompression_time=$(echo "$end_time - $start_time" | bc)
+  local decompression_speed=$(echo "scale=2; $original_mb / $decompression_time" | bc)
+
+  # Verify decompression was successful
+  local file_hash=$(md5sum "$file" | cut -d' ' -f1)
+  local decompressed_hash=$(md5sum "$decompressed_file" | cut -d' ' -f1)
+
+  if [ "$file_hash" != "$decompressed_hash" ]; then
+    echo "WARNING: Decompression verification failed for $filename with $algorithm!" >&2
+  fi
+
+  # Log results
+  echo "$filename,$algorithm,$original_size,$compressed_size,$compression_ratio,$compression_time,$decompression_time,$compression_speed,$decompression_speed" >>"$RESULTS_FILE"
+}
+
+# Create output directories
+mkdir -p /data/compressed /data/decompressed
+
+# Run tests for each file in the corpus with each algorithm
+find /data/silesia -type f -size +0 | while read file; do
+  # Test gzip with different compression levels
+  for level in 1 6 9; do
+    test_compression "$file" "gzip-$level" "gzip -c -$level" "gzip -d -c" ".gz"
+  done
+
+  # Test bzip2 with different compression levels
+  for level in 1 5 9; do
+    test_compression "$file" "bzip2-$level" "bzip2 -c -$level" "bzip2 -d -c" ".bz2"
+  done
+
+  # Test xz with different compression levels
+  for level in 1 6 9; do
+    test_compression "$file" "xz-$level" "xz -c -$level" "xz -d -c" ".xz"
+  done
+
+  # Test zstd with different compression levels
+  for level in 1 10 19; do
+    test_compression "$file" "zstd-$level" "zstd -c -$level" "zstd -d -c" ".zst"
+  done
+done
+
+# Generate summary statistics
+echo -e "\nGenerating summary statistics..."
+echo -e "\nAverage metrics by algorithm:" >>"$RESULTS_FILE"
+echo "Algorithm,Avg Compression Ratio,Avg Compression Time (s),Avg Decompression Time (s),Avg Compression Speed (MB/s),Avg Decompression Speed (MB/s)" >>"$RESULTS_FILE"
+
+# Use awk to calculate averages by algorithm
+awk -F, 'NR>1 && $2 != "Algorithm" {
+    count[$2]++;
+    ratio_sum[$2] += $5;
+    comp_time_sum[$2] += $6;
+    decomp_time_sum[$2] += $7;
+    comp_speed_sum[$2] += $8;
+    decomp_speed_sum[$2] += $9;
+}
+END {
+    for (algo in count) {
+        printf "%s,%.2f,%.2f,%.2f,%.2f,%.2f\n", 
+            algo, 
+            ratio_sum[algo]/count[algo], 
+            comp_time_sum[algo]/count[algo], 
+            decomp_time_sum[algo]/count[algo],
+            comp_speed_sum[algo]/count[algo],
+            decomp_speed_sum[algo]/count[algo];
+    }
+}' "$RESULTS_FILE" | sort -t, -k2nr >>"$RESULTS_FILE"
+
+# Create a consolidated results file with the total size of all files
+echo -e "\nGenerating consolidated results..."
+echo "Algorithm,Total Original Size (KB),Total Compressed Size (KB),Overall Compression Ratio" >>"$RESULTS_FILE"
+
+# Use awk to calculate total sizes and overall ratios
+awk -F, '
+BEGIN {
+    PROCINFO["sorted_in"] = "@val_num_desc";
+}
+NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
+    orig_size[$2] += $3;
+    comp_size[$2] += $4;
+}
+END {
+    for (algo in orig_size) {
+        printf "%s,%d,%d,%.2f\n", 
+            algo, 
+            orig_size[algo], 
+            comp_size[algo], 
+            orig_size[algo]/comp_size[algo];
+    }
+}' "$RESULTS_FILE" | sort -t, -k4nr >>"$RESULTS_FILE"
+
+# Generate a visual report
+echo -e "\nCreating a visual report in HTML format..."
+cat >"/results/report.html" <<EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Compression Benchmark Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        tr:hover { background-color: #f5f5f5; }
+        .chart-container { width: 800px; height: 400px; margin-bottom: 30px; }
+        h1, h2 { color: #333; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Compression Algorithm Benchmark Results</h1>
+    <p>Benchmark run on: $(date)</p>
+    
+    <h2>Summary by Algorithm</h2>
+    <div class="chart-container">
+        <canvas id="ratioChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="timeChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="speedChart"></canvas>
+    </div>
+    
+    <h2>Detailed Results</h2>
+    <table id="resultsTable">
+        <thead>
+            <tr>
+                <th>File</th>
+                <th>Algorithm</th>
+                <th>Original Size (KB)</th>
+                <th>Compressed Size (KB)</th>
+                <th>Compression Ratio</th>
+                <th>Compression Time (s)</th>
+                <th>Decompression Time (s)</th>
+                <th>Compression Speed (MB/s)</th>
+                <th>Decompression Speed (MB/s)</th>
+            </tr>
+        </thead>
+        <tbody>
+EOF
+
+# Add table rows from the CSV file (skip headers and summary sections)
+awk -F, 'NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ && NF==9 {
+    print "<tr>";
+    for(i=1; i<=NF; i++) {
+        print "<td>" $i "</td>";
+    }
+    print "</tr>";
+}' "$RESULTS_FILE" >>"/results/report.html"
+
+cat >>"/results/report.html" <<EOF
+        </tbody>
+    </table>
+    
+    <h2>Average Metrics by Algorithm</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Algorithm</th>
+                <th>Avg Compression Ratio</th>
+                <th>Avg Compression Time (s)</th>
+                <th>Avg Decompression Time (s)</th>
+                <th>Avg Compression Speed (MB/s)</th>
+                <th>Avg Decompression Speed (MB/s)</th>
+            </tr>
+        </thead>
+        <tbody>
+EOF
+
+# Add summary table rows
+awk -F, '$2 ~ /^[a-z]/ && $2 ~ /-[0-9]+$/ && NF==6 {
+    print "<tr>";
+    for(i=1; i<=NF; i++) {
+        print "<td>" $i "</td>";
+    }
+    print "</tr>";
+}' "$RESULTS_FILE" >>"/results/report.html"
+
+cat >>"/results/report.html" <<EOF
+        </tbody>
+    </table>
+    
+    <script>
+        // Extract data for charts
+        const csvData = $($(cat "$RESULTS_FILE"));
+        const lines = csvData.split('\\n');
+        const avgSection = lines.findIndex(line => line.startsWith('Algorithm,Avg'));
+        const avgData = lines.slice(avgSection + 1).filter(line => line.match(/^[a-z][^,]*-[0-9]+,/)).map(line => {
+            const parts = line.split(',');
+            return {
+                algorithm: parts[0],
+                ratio: parseFloat(parts[1]),
+                compTime: parseFloat(parts[2]),
+                decompTime: parseFloat(parts[3]),
+                compSpeed: parseFloat(parts[4]),
+                decompSpeed: parseFloat(parts[5])
+            };
+        });
+        
+        // Sort algorithms by compression method and level
+        const algorithms = [...new Set(avgData.map(d => d.algorithm))].sort((a, b) => {
+            const [aMethod, aLevel] = a.split('-');
+            const [bMethod, bLevel] = b.split('-');
+            return aMethod.localeCompare(bMethod) || parseInt(aLevel) - parseInt(bLevel);
+        });
+        
+        // Create color map for algorithms
+        const colorMap = {
+            'gzip': 'rgba(75, 192, 192, 0.8)',
+            'bzip2': 'rgba(255, 99, 132, 0.8)',
+            'xz': 'rgba(54, 162, 235, 0.8)',
+            'zstd': 'rgba(255, 159, 64, 0.8)'
+        };
+        
+        // Get colors for each algorithm
+        const getColor = (algorithm) => {
+            const method = algorithm.split('-')[0];
+            return colorMap[method];
+        };
+        
+        // Create ratio chart
+        new Chart(document.getElementById('ratioChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: algorithms,
+                datasets: [{
+                    label: 'Compression Ratio (higher is better)',
+                    data: algorithms.map(algo => avgData.find(d => d.algorithm === algo).ratio),
+                    backgroundColor: algorithms.map(getColor)
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Ratio (original/compressed)'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Create time chart
+        new Chart(document.getElementById('timeChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: algorithms,
+                datasets: [
+                    {
+                        label: 'Compression Time (s)',
+                        data: algorithms.map(algo => avgData.find(d => d.algorithm === algo).compTime),
+                        backgroundColor: algorithms.map(algo => getColor(algo) + '0.7')
+                    },
+                    {
+                        label: 'Decompression Time (s)',
+                        data: algorithms.map(algo => avgData.find(d => d.algorithm === algo).decompTime),
+                        backgroundColor: algorithms.map(algo => getColor(algo) + '0.3')
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y',
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Time (seconds, lower is better)'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Create speed chart
+        new Chart(document.getElementById('speedChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: algorithms,
+                datasets: [
+                    {
+                        label: 'Compression Speed (MB/s)',
+                        data: algorithms.map(algo => avgData.find(d => d.algorithm === algo).compSpeed),
+                        backgroundColor: algorithms.map(algo => getColor(algo) + '0.7')
+                    },
+                    {
+                        label: 'Decompression Speed (MB/s)',
+                        data: algorithms.map(algo => avgData.find(d => d.algorithm === algo).decompSpeed),
+                        backgroundColor: algorithms.map(algo => getColor(algo) + '0.3')
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y',
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Speed (MB/s, higher is better)'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+EOF
+
+echo "Benchmark completed successfully!"
+echo "Results are available in $RESULTS_FILE"
+echo "HTML report is available at /results/report.html"
