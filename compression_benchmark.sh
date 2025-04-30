@@ -142,7 +142,7 @@ END {
                 comp_size[algo];
         }
     }
-}' "$RESULTS_FILE" | sort -t, -k4nr,k1 >>"$RESULTS_FILE"
+}' "$RESULTS_FILE" | sort -t, -k4rn,k1 >>"$RESULTS_FILE"
 
 # Generate a visual report
 echo -e "\nCreating a visual report in HTML format..."
@@ -240,11 +240,11 @@ END {
         if (count[algo] > 0) {
             print "<tr>";
             print "<td>" algo "</td>";
-            print "<td>" ratio_sum[algo]/count[algo] "</td>";
-            print "<td>" comp_time_sum[algo]/count[algo] "</td>";
-            print "<td>" decomp_time_sum[algo]/count[algo] "</td>";
-            print "<td>" comp_speed_sum[algo]/count[algo] "</td>";
-            print "<td>" decomp_speed_sum[algo]/count[algo] "</td>";
+            printf "<td>%.2f</td>", ratio_sum[algo]/count[algo];
+            printf "<td>%.2f</td>", comp_time_sum[algo]/count[algo];
+            printf "<td>%.2f</td>", decomp_time_sum[algo]/count[algo];
+            printf "<td>%.2f</td>", comp_speed_sum[algo]/count[algo];
+            printf "<td>%.2f</td>", decomp_speed_sum[algo]/count[algo];
             print "</tr>";
         }
     }
