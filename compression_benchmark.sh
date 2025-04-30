@@ -130,11 +130,12 @@ NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
 END {
     for (algo in orig_size) {
         if (comp_size[algo] > 0) {
+            ratio = orig_size[algo]/comp_size[algo];
             printf "%s,%d,%d,%.2f\n", 
                 algo, 
                 orig_size[algo], 
                 comp_size[algo], 
-                orig_size[algo]/comp_size[algo];
+                ratio;
         } else {
             printf "%s,%d,%d,N/A\n", 
                 algo, 
@@ -142,7 +143,45 @@ END {
                 comp_size[algo];
         }
     }
-}' "$RESULTS_FILE" | sort -t, -k4rn,k1 >>"$RESULTS_FILE"
+}' "$RESULTS_FILE" | sort -t, -k4r >>"$RESULTS_FILE" 2>/dev/null || {
+  # Fallback sorting that avoids numeric sorting issues
+  awk -F, '
+    BEGIN {
+        PROCINFO["sorted_in"] = "@val_num_desc";
+    }
+    NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
+        orig_size[$2] += $3;
+        comp_size[$2] += $4;
+    }
+    END {
+        # Sort by ratio
+        for (algo in orig_size) {
+            if (comp_size[algo] > 0) {
+                ratio = orig_size[algo]/comp_size[algo];
+                data[algo] = ratio;
+            } else {
+                data[algo] = 0;
+            }
+        }
+        
+        # Print in descending order
+        PROCINFO["sorted_in"] = "@val_num_desc";
+        for (algo in data) {
+            if (comp_size[algo] > 0) {
+                printf "%s,%d,%d,%.2f\n", 
+                    algo, 
+                    orig_size[algo], 
+                    comp_size[algo], 
+                    orig_size[algo]/comp_size[algo];
+            } else {
+                printf "%s,%d,%d,N/A\n", 
+                    algo, 
+                    orig_size[algo], 
+                    comp_size[algo];
+            }
+        }
+    }' "$RESULTS_FILE" >>"$RESULTS_FILE"
+}
 
 # Generate a visual report
 echo -e "\nCreating a visual report in HTML format..."
