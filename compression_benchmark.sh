@@ -92,23 +92,25 @@ echo -e "\nAverage metrics by algorithm:" >>"$RESULTS_FILE"
 echo "Algorithm,Avg Compression Ratio,Avg Compression Time (s),Avg Decompression Time (s),Avg Compression Speed (MB/s),Avg Decompression Speed (MB/s)" >>"$RESULTS_FILE"
 
 # Use awk to calculate averages by algorithm
-awk -F, 'NR>1 && $2 != "Algorithm" {
+awk -F, 'NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
     count[$2]++;
-    ratio_sum[$2] += $5;
-    comp_time_sum[$2] += $6;
-    decomp_time_sum[$2] += $7;
-    comp_speed_sum[$2] += $8;
-    decomp_speed_sum[$2] += $9;
+    if ($5 != "" && $5 != "N/A") ratio_sum[$2] += $5;
+    if ($6 != "" && $6 != "N/A") comp_time_sum[$2] += $6;
+    if ($7 != "" && $7 != "N/A") decomp_time_sum[$2] += $7; 
+    if ($8 != "" && $8 != "N/A") comp_speed_sum[$2] += $8;
+    if ($9 != "" && $9 != "N/A") decomp_speed_sum[$2] += $9;
 }
 END {
     for (algo in count) {
-        printf "%s,%.2f,%.2f,%.2f,%.2f,%.2f\n", 
-            algo, 
-            ratio_sum[algo]/count[algo], 
-            comp_time_sum[algo]/count[algo], 
-            decomp_time_sum[algo]/count[algo],
-            comp_speed_sum[algo]/count[algo],
-            decomp_speed_sum[algo]/count[algo];
+        if (count[algo] > 0) {
+            printf "%s,%.2f,%.2f,%.2f,%.2f,%.2f\n", 
+                algo, 
+                (ratio_sum[algo] ? ratio_sum[algo]/count[algo] : 0), 
+                (comp_time_sum[algo] ? comp_time_sum[algo]/count[algo] : 0), 
+                (decomp_time_sum[algo] ? decomp_time_sum[algo]/count[algo] : 0),
+                (comp_speed_sum[algo] ? comp_speed_sum[algo]/count[algo] : 0),
+                (decomp_speed_sum[algo] ? decomp_speed_sum[algo]/count[algo] : 0);
+        }
     }
 }' "$RESULTS_FILE" | sort -t, -k2nr >>"$RESULTS_FILE"
 
@@ -127,17 +129,24 @@ NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
 }
 END {
     for (algo in orig_size) {
-        printf "%s,%d,%d,%.2f\n", 
-            algo, 
-            orig_size[algo], 
-            comp_size[algo], 
-            orig_size[algo]/comp_size[algo];
+        if (comp_size[algo] > 0) {
+            printf "%s,%d,%d,%.2f\n", 
+                algo, 
+                orig_size[algo], 
+                comp_size[algo], 
+                orig_size[algo]/comp_size[algo];
+        } else {
+            printf "%s,%d,%d,N/A\n", 
+                algo, 
+                orig_size[algo], 
+                comp_size[algo];
+        }
     }
-}' "$RESULTS_FILE" | sort -t, -k4nr >>"$RESULTS_FILE"
+}' "$RESULTS_FILE" | sort -t, -k4nr,k1 >>"$RESULTS_FILE"
 
 # Generate a visual report
 echo -e "\nCreating a visual report in HTML format..."
-cat >"/results/report.html" <<EOF
+cat >"/results/report.html" <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -195,7 +204,7 @@ awk -F, 'NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ && NF==9 {
     print "</tr>";
 }' "$RESULTS_FILE" >>"/results/report.html"
 
-cat >>"/results/report.html" <<EOF
+cat >>"/results/report.html" <<'EOF'
         </tbody>
     </table>
     
@@ -214,13 +223,31 @@ cat >>"/results/report.html" <<EOF
         <tbody>
 EOF
 
-# Add summary table rows
-awk -F, '$2 ~ /^[a-z]/ && $2 ~ /-[0-9]+$/ && NF==6 {
-    print "<tr>";
-    for(i=1; i<=NF; i++) {
-        print "<td>" $i "</td>";
+# Generate summary rows dynamically
+echo "Generating summary rows for HTML report..."
+awk -F, 'NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ && $2 ~ /-[0-9]+$/ {
+    count[$2]++;
+    orig_sum[$2] += $3;
+    comp_sum[$2] += $4;
+    ratio_sum[$2] += $5;
+    comp_time_sum[$2] += $6;
+    decomp_time_sum[$2] += $7;
+    comp_speed_sum[$2] += $8;
+    decomp_speed_sum[$2] += $9;
+}
+END {
+    for (algo in count) {
+        if (count[algo] > 0) {
+            print "<tr>";
+            print "<td>" algo "</td>";
+            print "<td>" ratio_sum[algo]/count[algo] "</td>";
+            print "<td>" comp_time_sum[algo]/count[algo] "</td>";
+            print "<td>" decomp_time_sum[algo]/count[algo] "</td>";
+            print "<td>" comp_speed_sum[algo]/count[algo] "</td>";
+            print "<td>" decomp_speed_sum[algo]/count[algo] "</td>";
+            print "</tr>";
+        }
     }
-    print "</tr>";
 }' "$RESULTS_FILE" >>"/results/report.html"
 
 cat >>"/results/report.html" <<EOF
@@ -228,21 +255,62 @@ cat >>"/results/report.html" <<EOF
     </table>
     
     <script>
-        // Extract data for charts
-        const csvData = $($(cat "$RESULTS_FILE"));
-        const lines = csvData.split('\\n');
-        const avgSection = lines.findIndex(line => line.startsWith('Algorithm,Avg'));
-        const avgData = lines.slice(avgSection + 1).filter(line => line.match(/^[a-z][^,]*-[0-9]+,/)).map(line => {
-            const parts = line.split(',');
-            return {
-                algorithm: parts[0],
-                ratio: parseFloat(parts[1]),
-                compTime: parseFloat(parts[2]),
-                decompTime: parseFloat(parts[3]),
-                compSpeed: parseFloat(parts[4]),
-                decompSpeed: parseFloat(parts[5])
-            };
-        });
+        // We'll read the CSV data directly from the table in the DOM
+        function extractDataFromTable() {
+            const table = document.getElementById('resultsTable');
+            if (!table) {
+                console.error('Results table not found');
+                return [];
+            }
+            
+            const rows = table.querySelectorAll('tbody tr');
+            const data = {};
+            
+            // Group data by algorithm
+            Array.from(rows).forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 9) {
+                    const algorithm = cells[1].textContent;
+                    if (!data[algorithm]) {
+                        data[algorithm] = {
+                            count: 0,
+                            ratioSum: 0,
+                            compTimeSum: 0,
+                            decompTimeSum: 0,
+                            compSpeedSum: 0,
+                            decompSpeedSum: 0
+                        };
+                    }
+                    
+                    data[algorithm].count++;
+                    data[algorithm].ratioSum += parseFloat(cells[4].textContent) || 0;
+                    data[algorithm].compTimeSum += parseFloat(cells[5].textContent) || 0;
+                    data[algorithm].decompTimeSum += parseFloat(cells[6].textContent) || 0;
+                    data[algorithm].compSpeedSum += parseFloat(cells[7].textContent) || 0;
+                    data[algorithm].decompSpeedSum += parseFloat(cells[8].textContent) || 0;
+                }
+            });
+            
+            // Calculate averages
+            const avgData = Object.keys(data).map(algorithm => {
+                const item = data[algorithm];
+                if (item.count === 0) return null;
+                
+                return {
+                    algorithm: algorithm,
+                    ratio: item.ratioSum / item.count,
+                    compTime: item.compTimeSum / item.count,
+                    decompTime: item.decompTimeSum / item.count,
+                    compSpeed: item.compSpeedSum / item.count,
+                    decompSpeed: item.decompSpeedSum / item.count
+                };
+            }).filter(item => item !== null);
+            
+            return avgData;
+        }
+        
+        // Extract data from the table
+        const avgData = extractDataFromTable();
         
         // Sort algorithms by compression method and level
         const algorithms = [...new Set(avgData.map(d => d.algorithm))].sort((a, b) => {
