@@ -96,17 +96,17 @@ awk -F, 'NR>1 && $2 != "Algorithm" && $2 !~ /^Avg/ {
     count[$2]++;
     if ($5 != "" && $5 != "N/A") ratio_sum[$2] += $5;
     if ($6 != "" && $6 != "N/A") comp_time_sum[$2] += $6;
-    if ($7 != "" && $7 != "N/A") decomp_time_sum[$2] += $7; 
+    if ($7 != "" && $7 != "N/A") decomp_time_sum[$2] += $7;
     if ($8 != "" && $8 != "N/A") comp_speed_sum[$2] += $8;
     if ($9 != "" && $9 != "N/A") decomp_speed_sum[$2] += $9;
 }
 END {
     for (algo in count) {
         if (count[algo] > 0) {
-            printf "%s,%.2f,%.2f,%.2f,%.2f,%.2f\n", 
-                algo, 
-                (ratio_sum[algo] ? ratio_sum[algo]/count[algo] : 0), 
-                (comp_time_sum[algo] ? comp_time_sum[algo]/count[algo] : 0), 
+            printf "%s,%.2f,%.2f,%.2f,%.2f,%.2f\n",
+                algo,
+                (ratio_sum[algo] ? ratio_sum[algo]/count[algo] : 0),
+                (comp_time_sum[algo] ? comp_time_sum[algo]/count[algo] : 0),
                 (decomp_time_sum[algo] ? decomp_time_sum[algo]/count[algo] : 0),
                 (comp_speed_sum[algo] ? comp_speed_sum[algo]/count[algo] : 0),
                 (decomp_speed_sum[algo] ? decomp_speed_sum[algo]/count[algo] : 0);
@@ -131,15 +131,15 @@ END {
     for (algo in orig_size) {
         if (comp_size[algo] > 0) {
             ratio = orig_size[algo]/comp_size[algo];
-            printf "%s,%d,%d,%.2f\n", 
-                algo, 
-                orig_size[algo], 
-                comp_size[algo], 
+            printf "%s,%d,%d,%.2f\n",
+                algo,
+                orig_size[algo],
+                comp_size[algo],
                 ratio;
         } else {
-            printf "%s,%d,%d,N/A\n", 
-                algo, 
-                orig_size[algo], 
+            printf "%s,%d,%d,N/A\n",
+                algo,
+                orig_size[algo],
                 comp_size[algo];
         }
     }
@@ -163,20 +163,20 @@ END {
                 data[algo] = 0;
             }
         }
-        
+
         # Print in descending order
         PROCINFO["sorted_in"] = "@val_num_desc";
         for (algo in data) {
             if (comp_size[algo] > 0) {
-                printf "%s,%d,%d,%.2f\n", 
-                    algo, 
-                    orig_size[algo], 
-                    comp_size[algo], 
+                printf "%s,%d,%d,%.2f\n",
+                    algo,
+                    orig_size[algo],
+                    comp_size[algo],
                     orig_size[algo]/comp_size[algo];
             } else {
-                printf "%s,%d,%d,N/A\n", 
-                    algo, 
-                    orig_size[algo], 
+                printf "%s,%d,%d,N/A\n",
+                    algo,
+                    orig_size[algo],
                     comp_size[algo];
             }
         }
@@ -191,8 +191,8 @@ cat >"/results/report.html" <<'EOF'
 <head>
     <title>Compression Benchmark Results</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
+        body {
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f9f9f9;
@@ -207,19 +207,19 @@ cat >"/results/report.html" <<'EOF'
             padding: 20px;
             margin-bottom: 20px;
         }
-        table { 
-            border-collapse: collapse; 
-            width: 100%; 
+        table {
+            border-collapse: collapse;
+            width: 100%;
             margin-bottom: 20px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
-        th, td { 
-            padding: 12px 15px; 
-            text-align: left; 
-            border-bottom: 1px solid #ddd; 
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
         }
-        th { 
-            background-color: #f2f2f2; 
+        th {
+            background-color: #f2f2f2;
             position: sticky;
             top: 0;
             z-index: 10;
@@ -227,28 +227,28 @@ cat >"/results/report.html" <<'EOF'
         }
         tr:hover { background-color: #f5f5f5; }
         tr.selected { background-color: #e3f2fd !important; }
-        
-        .chart-container { 
-            height: 400px; 
+
+        .chart-container {
+            height: 400px;
             margin-bottom: 30px;
             background-color: white;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             padding: 15px;
         }
-        h1 { 
-            color: #2c3e50; 
+        h1 {
+            color: #2c3e50;
             margin-top: 0;
             padding-bottom: 10px;
             border-bottom: 2px solid #eee;
         }
-        h2 { 
+        h2 {
             color: #34495e;
             margin-top: 30px;
             padding-bottom: 8px;
             border-bottom: 1px solid #eee;
         }
-        
+
         /* Tab styling */
         .tabs {
             display: flex;
@@ -281,7 +281,7 @@ cat >"/results/report.html" <<'EOF'
         .tab-content.active {
             display: block;
         }
-        
+
         #tableSearch {
             padding: 10px;
             margin-bottom: 15px;
@@ -290,7 +290,7 @@ cat >"/results/report.html" <<'EOF'
             border-radius: 4px;
             font-size: 14px;
         }
-        
+
         .summary {
             background-color: #f8f9fa;
             padding: 15px;
@@ -305,17 +305,17 @@ cat >"/results/report.html" <<'EOF'
     <div class="container">
         <h1>Compression Algorithm Benchmark Results</h1>
         <p>Benchmark run on: <span id="currentDate">Loading date...</span></p>
-        
+
         <div class="summary">
             <p><strong>Benchmark Summary:</strong> This report compares performance of xz, gzip, bzip2, and zstd compression algorithms on the Silesia corpus.</p>
         </div>
-        
+
         <div class="tabs">
             <div class="tab active" onclick="switchTab('chartTab')">Charts</div>
             <div class="tab" onclick="switchTab('detailsTab')">Detailed Results</div>
             <div class="tab" onclick="switchTab('summaryTab')">Summary</div>
         </div>
-        
+
         <div id="chartTab" class="tab-content active">
             <h2>Performance Charts</h2>
             <div class="chart-container">
@@ -328,7 +328,7 @@ cat >"/results/report.html" <<'EOF'
                 <canvas id="speedChart"></canvas>
             </div>
         </div>
-        
+
         <div id="detailsTab" class="tab-content">
             <h2>Detailed Results</h2>
             <input type="text" id="tableSearch" placeholder="Search files or algorithms..." onkeyup="filterTable()">
@@ -362,7 +362,7 @@ cat >>"/results/report.html" <<'EOF'
                 </tbody>
             </table>
         </div>
-        
+
         <div id="summaryTab" class="tab-content">
             <h2>Average Metrics by Algorithm</h2>
             <table>
@@ -411,11 +411,11 @@ cat >>"/results/report.html" <<'EOF'
             </table>
         </div>
     </div>
-    
+
     <script>
         // Set the current date
         document.getElementById('currentDate').textContent = new Date().toLocaleString();
-        
+
         // Tab switching functionality
         function switchTab(tabId) {
             // Hide all tabs
@@ -425,25 +425,25 @@ cat >>"/results/report.html" <<'EOF'
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
             });
-            
+
             // Show selected tab
             document.getElementById(tabId).classList.add('active');
             Array.from(document.querySelectorAll('.tab')).find(
                 tab => tab.textContent.includes(tabId.replace('Tab', ''))
             ).classList.add('active');
         }
-        
+
         // Table search functionality
         function filterTable() {
             const input = document.getElementById('tableSearch');
             const filter = input.value.toUpperCase();
             const table = document.getElementById('resultsTable');
             const rows = table.getElementsByTagName('tr');
-            
+
             for (let i = 1; i < rows.length; i++) {
                 let visible = false;
                 const cells = rows[i].getElementsByTagName('td');
-                
+
                 for (let j = 0; j < 2; j++) { // Only search in file and algorithm columns
                     const cell = cells[j];
                     if (cell) {
@@ -454,11 +454,11 @@ cat >>"/results/report.html" <<'EOF'
                         }
                     }
                 }
-                
+
                 rows[i].style.display = visible ? '' : 'none';
             }
         }
-        
+
         // Add event handlers to highlight table rows on hover or click
         document.querySelectorAll('#resultsTable tbody tr').forEach(row => {
             row.addEventListener('mouseover', function() {
@@ -482,7 +482,7 @@ cat >>"/results/report.html" <<'EOF'
                 }
             });
         });
-        
+
         // We'll read the CSV data directly from the table in the DOM
         function extractDataFromTable() {
             const table = document.getElementById('resultsTable');
@@ -490,10 +490,10 @@ cat >>"/results/report.html" <<'EOF'
                 console.error('Results table not found');
                 return [];
             }
-            
+
             const rows = table.querySelectorAll('tbody tr');
             const data = {};
-            
+
             // Group data by algorithm
             Array.from(rows).forEach(row => {
                 const cells = row.querySelectorAll('td');
@@ -509,7 +509,7 @@ cat >>"/results/report.html" <<'EOF'
                             decompSpeedSum: 0
                         };
                     }
-                    
+
                     data[algorithm].count++;
                     data[algorithm].ratioSum += parseFloat(cells[4].textContent) || 0;
                     data[algorithm].compTimeSum += parseFloat(cells[5].textContent) || 0;
@@ -518,12 +518,12 @@ cat >>"/results/report.html" <<'EOF'
                     data[algorithm].decompSpeedSum += parseFloat(cells[8].textContent) || 0;
                 }
             });
-            
+
             // Calculate averages
             const avgData = Object.keys(data).map(algorithm => {
                 const item = data[algorithm];
                 if (item.count === 0) return null;
-                
+
                 return {
                     algorithm: algorithm,
                     ratio: item.ratioSum / item.count,
@@ -533,12 +533,12 @@ cat >>"/results/report.html" <<'EOF'
                     decompSpeed: item.decompSpeedSum / item.count
                 };
             }).filter(item => item !== null);
-            
+
             return avgData;
         }
-        
+
         const avgData = extractDataFromTable();
-        
+
         // Ensure we have data
         if (avgData.length === 0) {
             console.error('No data extracted from table');
@@ -553,7 +553,7 @@ cat >>"/results/report.html" <<'EOF'
                 }
                 return aMethod.localeCompare(bMethod);
             });
-            
+
             // Create color map for algorithms
             const colorMap = {
                 'gzip': 'rgba(75, 192, 192, 1)',
@@ -561,19 +561,19 @@ cat >>"/results/report.html" <<'EOF'
                 'xz': 'rgba(54, 162, 235, 1)',
                 'zstd': 'rgba(255, 159, 64, 1)'
             };
-            
+
             // Get colors for each algorithm
             const getColor = (algorithm) => {
                 const method = algorithm.split('-')[0];
                 return colorMap[method] || 'rgba(128, 128, 128, 1)';
             };
-            
+
             // Get background colors with transparency
             const getBackgroundColor = (algorithm, alpha = 0.7) => {
                 const baseColor = getColor(algorithm);
                 return baseColor.replace(/[0-9.]+\)$/, alpha + ')');
             };
-            
+
             // Create ratio chart
             new Chart(document.getElementById('ratioChart').getContext('2d'), {
                 type: 'bar',
@@ -598,7 +598,7 @@ cat >>"/results/report.html" <<'EOF'
                     }
                 }
             });
-            
+
             // Create time chart
             new Chart(document.getElementById('timeChart').getContext('2d'), {
                 type: 'bar',
@@ -630,7 +630,7 @@ cat >>"/results/report.html" <<'EOF'
                     }
                 }
             });
-            
+
             // Create speed chart
             new Chart(document.getElementById('speedChart').getContext('2d'), {
                 type: 'bar',
