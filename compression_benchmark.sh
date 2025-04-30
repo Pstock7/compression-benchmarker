@@ -229,7 +229,6 @@ cat >"/results/report.html" <<'EOF'
         tr.selected { background-color: #e3f2fd !important; }
         
         .chart-container { 
-            width: 100%; 
             height: 400px; 
             margin-bottom: 30px;
             background-color: white;
