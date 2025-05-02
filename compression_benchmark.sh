@@ -158,7 +158,7 @@ cat "$CONSOLIDATED_FILE" >>"$RESULTS_FILE"
 
 # Generate a visual report
 echo -e "\nCreating a visual report in HTML format..."
-cat >"/results/report.html" <<'EOF'
+cat >"/results/report.html" <<EOF
 <!DOCTYPE html>
 <html>
 <head>
@@ -277,7 +277,7 @@ cat >"/results/report.html" <<'EOF'
 <body>
     <div class="container">
         <h1>Compression Algorithm Benchmark Results</h1>
-        <p>Benchmark run on: <span id="currentDate">Loading date...</span></p>
+        <p>Benchmark run on: $(date)</p>
 
         <div class="summary">
             <p><strong>Benchmark Summary:</strong> This report compares performance of xz, gzip, bzip2, and zstd compression algorithms on the Silesia corpus.</p>
@@ -371,9 +371,6 @@ cat >>"/results/report.html" <<'EOF'
     </div>
 
     <script>
-        // Set the current date
-        document.getElementById('currentDate').textContent = new Date().toLocaleString();
-
         // Tab switching functionality
         function switchTab(tabId) {
             // Hide all tabs
@@ -620,7 +617,7 @@ cat >>"/results/report.html" <<'EOF'
                     }
                 }
             });
-            
+
             // Create efficiency scatter plot (compression ratio vs speed)
             // Group algorithms by compression method
             const methodGroups = {};
@@ -631,7 +628,7 @@ cat >>"/results/report.html" <<'EOF'
                 }
                 methodGroups[method].push(algo);
             });
-            
+
             // Create datasets for the scatter plot - one dataset per compression method
             const scatterDatasets = Object.keys(methodGroups).map(method => {
                 const methodAlgos = methodGroups[method].sort((a, b) => {
@@ -639,7 +636,7 @@ cat >>"/results/report.html" <<'EOF'
                     const bLevel = parseInt(b.split('-')[1]);
                     return aLevel - bLevel;
                 });
-                
+
                 return {
                     label: method,
                     data: methodAlgos.map(algo => {
@@ -659,7 +656,7 @@ cat >>"/results/report.html" <<'EOF'
                     tension: 0.1
                 };
             });
-            
+
             // Create the scatter plot
             const scatterChart = new Chart(document.getElementById('scatterChart').getContext('2d'), {
                 type: 'scatter',
